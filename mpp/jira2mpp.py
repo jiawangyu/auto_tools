@@ -95,6 +95,7 @@ def writeMpp(outFile):
     mpp.FileNew(None,None,None,False)
     mpp.WBSCodeMaskEdit('',1,0)                  #导入顺序不一致添加
     mpp.WBSCodeRenumber(All=True) 
+    mpp.AddNewColumn()
     proj = mpp.ActiveProject
 
     line = 1
@@ -110,6 +111,7 @@ def writeMpp(outFile):
         sprintTask.ConstraintType = 5                    # 任务限制类型:越早越好、不得早于等等.  5:设置为不得晚于...开始，不会出现ms-project自动修改时间
         sprintTask.ConstraintDate = ''                   # 任务限制日期
         sprintTask.PercentComplete = '0'                 # 完成百分比
+
         logging.info("sprint %s "%(sprint.name))
         for epic in sprint.epics:
             epicTask = proj.Tasks.Add(epic.summary, line)
