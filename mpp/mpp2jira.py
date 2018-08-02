@@ -46,27 +46,12 @@ class JiraTool:
         else:
             return 'Please input your issueId'
  
-    def createIssue(self, description, assignee, project, parent, issuetype):
-#        new_issue = self.jiraClinet.create_issue(project='SCRUM', summary='New issue from jira-python',
-#                              description='Look into this one', issuetype={'id': '10001'})
-#        return
-#        issue_dict = {
-#            'project': {'key': 'SCRUM'},
-#            'issuetype': {'id': 10001},
-#            #'parent': {'key': parent},
-#            #'summary': '[xxx]Auto sync file %s from storage-cnn to storage',
-#            #'description': description,
-#            #'assignee': {'name': assignee},
-#            'customfield_10000': {'value': 'xxx'},
-#            #'components': [{'name': 'SCM'}],
-#            #'priority': {'id': 3},
-#        }
+    def createIssue(self, project, issuetype, summary, description):
         issue_dict = {
             'project': {'key': 'SCRUM'},
+            'issuetype': {'id': '10001', 'name': 'Task'},
             'summary': 'New issue from jira-python 1',
             'description': 'Look into this one',
-            'issuetype': {'id': '10001', 'name': 'Task'},
-            #'priority': {'id': 3},
         }
         if self.jiraClinet == None:
             self.login()
@@ -103,15 +88,8 @@ def main():
     logging.info("jira login ... ")
     jiraTool.login()
 
-    description = 'abcdefaaaaaaaaaaaaa'
-    assignee = 'yujiawang'
-    watchers = None
-    project = 'scrum_project'
-    parent = 'xxxx'
-    openIssuekey = 'mppIssue1'
-    cnnStoragePath = 'xxxxx'
     logging.info("create a issue.")
-    issue = jiraTool.createIssue(description, assignee, project, parent, 'sub-task')
+    issue = jiraTool.createIssue(project, 'Task', 'sumary', 'description')
     issueKey = issue.key
     logging.info("add comment.")
     jiraTool.jiraClinet.add_comment(issue=issueKey, body='user does not exis')
