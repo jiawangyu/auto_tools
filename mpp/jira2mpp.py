@@ -164,6 +164,7 @@ def timeFormat(time):
 def export(projectName):
     project_issues = jira.search_issues(projectName)
     for issue in project_issues:
+        dumpIssue(issue)
         created_time = timeFormat(issue.fields.created)
         logging.info('<--------------------------')
         sprint_name = ''
