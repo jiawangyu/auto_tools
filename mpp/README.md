@@ -33,6 +33,6 @@
 编码类（源码、演示、程序、测试等）
 
 #问题（20180802）
-* 1. sprint 在jira中并不是个issue，如何创建sprint，并和issue关联；
-* 2. jira的创建日期，到期日都不可以修改；
-* 3. jira里的参与人如何设置。
+* sprint 在jira中并不是个issue，如何创建sprint，并和issue关联；
+* jira的创建日期，到期日都不可以修改；
+* jira里的参与人如何设置。
