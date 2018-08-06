@@ -1,1 +1,7 @@
+https://jira.readthedocs.io/en/master/_modules/jira/client.html
+https://jira.readthedocs.io/en/master/genindex.html
+
+
 http://jira.readthedocs.io/en/master/examples.html#quickstart
+https://blog.csdn.net/jtscript/article/details/44674941
+https://blog.csdn.net/hqzxsc2006/article/details/51751906
