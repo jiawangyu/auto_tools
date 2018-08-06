@@ -27,20 +27,22 @@
 3. 使用实际项目的mpp文件作为测试数据
 44. 需要进行架构设计，考虑使用ms project更新JIRA现有任务数据的可能性
 
-
 ## 交付件要求
 报告类（调研、概念、创意、方案等）
 编码类（源码、演示、程序、测试等）
 
+# 问题（20180806）
+* jira里的参与人如何设置;
+* jira的创建日期，到期日都不可以修改；
+* project 看板与mpp对应的关系
+--  先从jira里以project名称获取对应的看板，如果看板不存在则创建一个。
+
 # 问题（20180802）
 * sprint 在jira中并不是个issue，如何创建sprint，并和issue关联； -- 已解决
-create_sprint
-add_issues_to_sprint
-* jira的创建日期，到期日都不可以修改；
-* jira里的参与人如何设置;
-* issue与epic的关联关系；
+add_issues_to_sprint        -- 已解决
+* issue与epic的关联关系；   -- 已解决
 由于jira中Sub-Task不能再创建Sub-Task，所有如果mpp中有四级任务，则对应的三级任务只能创建一个Task并将其Epic字段设置为二级任务的链接，如果
 没有四级任务，则即可以创建一个Task并将其Epic字段设置为二级任务的链接，也可以创建一个Sub-Task。
-* project 看板与mpp对应的关系；
+* 根据mpp文件名如过不存在则创建一个project，同理先先根据project id和文件名作为看板名称判断是否有此看板，有则返回该看板，没有则增加看板。
+-- python里创建project有问题，目前通过手动在jira里创建来规避
 
-根据mpp文件名如过不存在则创建一个project，同理先先根据project id和文件名作为看板名称判断是否有此看板，有则返回该看板，没有则增加看板。

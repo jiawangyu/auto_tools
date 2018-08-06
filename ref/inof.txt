@@ -1,7 +1,10 @@
 https://jira.readthedocs.io/en/master/_modules/jira/client.html
 https://jira.readthedocs.io/en/master/genindex.html
-
+https://developer.atlassian.com/server/jira/platform/jira-rest-api-examples/#creating-an-issue-examples
 
 http://jira.readthedocs.io/en/master/examples.html#quickstart
 https://blog.csdn.net/jtscript/article/details/44674941
 https://blog.csdn.net/hqzxsc2006/article/details/51751906
+
+Responsible list
+http://your-domain.atlassian.net/rest/api/2/group/member?groupname=jira-administrators&includeInactiveUsers=false&startAt=2&maxResults=2
