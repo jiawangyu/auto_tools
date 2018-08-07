@@ -315,11 +315,6 @@ def main(argv):
     logging.info("jira login ... ")
     jira_tool.login()
 
-    #for debug
-    users = jira_tool.jiraClinet.search_users('z')
-    logging.info(users)
-    return
-
     project = jira_tool.getProject(project)
     if (project is None):
         logging.error("%s project does not exist.")
