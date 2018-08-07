@@ -1,9 +1,9 @@
-# -*- coding: utf-8 -*-
+ï»¿# -*- coding: utf-8 -*-
 # **************************************************************
 # *  Filename:    jira2mpp.py
 # *  Copyright:   SMEE Co., Ltd.
 # *  @author:     jun.zhou
-# *  ½«jiraÀïµÄÊı¾İµ¼³öÎªmppÎÄ¼ş¸ñÊ½
+# *  å°†jiraé‡Œçš„æ•°æ®å¯¼å‡ºä¸ºmppæ–‡ä»¶æ ¼å¼
 # *  @date     2018/7/17  @Reviser  Initial Version
 # **************************************************************
 import os, sys, datetime
@@ -13,6 +13,7 @@ import pythoncom
 
 import logging
 import argparse
+from optparse import OptionParser
 
 from jira import JIRA
 from jira.client import GreenHopper
@@ -22,7 +23,7 @@ sys.setdefaultencoding('utf-8')
 
 jira = JIRA('http://127.0.0.1:8080/',basic_auth=('yujiawang','198317'))
 
-pythoncom.CoInitialize() #·ÀÖ¹³öÏÖÖØ¸´´ò¿ªÒì³£
+pythoncom.CoInitialize() #é˜²æ­¢å‡ºç°é‡å¤æ‰“å¼€å¼‚å¸¸
 
 gSprints = {}
 
@@ -93,24 +94,24 @@ def writeMpp(outFile):
     mpp         = win32com.client.Dispatch("MSProject.Application")
     mpp.Visible = True
     mpp.FileNew(None,None,None,False)
-    mpp.WBSCodeMaskEdit('',1,0)                  #µ¼ÈëË³Ğò²»Ò»ÖÂÌí¼Ó
+    mpp.WBSCodeMaskEdit('',1,0)                  #å¯¼å…¥é¡ºåºä¸ä¸€è‡´æ·»åŠ 
     mpp.WBSCodeRenumber(All=True) 
     mpp.AddNewColumn()
     proj = mpp.ActiveProject
 
     line = 1
     for sprint in gSprints.values():
-        sprintTask = proj.Tasks.Add(sprint.name,line)       # ²ÎÊı:ÈÎÎñÃû³Æ¡¢ÈÎÎñÔÚµÚ¼¸ĞĞ
+        sprintTask = proj.Tasks.Add(sprint.name,line)       # å‚æ•°:ä»»åŠ¡åç§°ã€ä»»åŠ¡åœ¨ç¬¬å‡ è¡Œ
         line += 1
         sprintTask.OutlineLevel  = 1;
         sprintTask.ResourceNames = '' # owner
-        sprintTask.ActualStart   = sprint.startDate      # ¿ªÊ¼Ê±¼ä
-        sprintTask.ActualFinish  = sprint.endDate        # ½áÊøÊ±¼ä
-        sprintTask.Predecessors  = ''                    # Ç°ÖÃÈÎÎñid  ×¢:Ç°ÖÃÈÎÎñidÓ¦¸ÃÔÚµ¼³öÍê³Éºó±£´æTask¶ÔÏó£¬ÖØĞÂÑ­»·Ìí¼ÓÇ°ÖÃÈÎÎñ¡£²»È»»á³öÏÖÈÎÎñ3ÔÚµÚÈıĞĞ£¬¶øËûµÄÇ°ÖÃÈÎÎñÔÚµÚ4ĞĞ£¬ÄÇÃ´»á³öÏÖµ¼³ö¿ÕµÄĞĞ
-        sprintTask.Milestone=False                       # ÊÇ·ñÊÇmilestone
-        sprintTask.ConstraintType = 5                    # ÈÎÎñÏŞÖÆÀàĞÍ:Ô½ÔçÔ½ºÃ¡¢²»µÃÔçÓÚµÈµÈ.  5:ÉèÖÃÎª²»µÃÍíÓÚ...¿ªÊ¼£¬²»»á³öÏÖms-project×Ô¶¯ĞŞ¸ÄÊ±¼ä
-        sprintTask.ConstraintDate = ''                   # ÈÎÎñÏŞÖÆÈÕÆÚ
-        sprintTask.PercentComplete = '0'                 # Íê³É°Ù·Ö±È
+        sprintTask.ActualStart   = sprint.startDate      # å¼€å§‹æ—¶é—´
+        sprintTask.ActualFinish  = sprint.endDate        # ç»“æŸæ—¶é—´
+        sprintTask.Predecessors  = ''                    # å‰ç½®ä»»åŠ¡id  æ³¨:å‰ç½®ä»»åŠ¡idåº”è¯¥åœ¨å¯¼å‡ºå®Œæˆåä¿å­˜Taskå¯¹è±¡ï¼Œé‡æ–°å¾ªç¯æ·»åŠ å‰ç½®ä»»åŠ¡ã€‚ä¸ç„¶ä¼šå‡ºç°ä»»åŠ¡3åœ¨ç¬¬ä¸‰è¡Œï¼Œè€Œä»–çš„å‰ç½®ä»»åŠ¡åœ¨ç¬¬4è¡Œï¼Œé‚£ä¹ˆä¼šå‡ºç°å¯¼å‡ºç©ºçš„è¡Œ
+        sprintTask.Milestone=False                       # æ˜¯å¦æ˜¯milestone
+        sprintTask.ConstraintType = 5                    # ä»»åŠ¡é™åˆ¶ç±»å‹:è¶Šæ—©è¶Šå¥½ã€ä¸å¾—æ—©äºç­‰ç­‰.  5:è®¾ç½®ä¸ºä¸å¾—æ™šäº...å¼€å§‹ï¼Œä¸ä¼šå‡ºç°ms-projectè‡ªåŠ¨ä¿®æ”¹æ—¶é—´
+        sprintTask.ConstraintDate = ''                   # ä»»åŠ¡é™åˆ¶æ—¥æœŸ
+        sprintTask.PercentComplete = '0'                 # å®Œæˆç™¾åˆ†æ¯”
 
         logging.info("sprint %s "%(sprint.name))
         for epic in sprint.epics:
@@ -164,7 +165,7 @@ def timeFormat(time):
     return time[::-1].split('T', 1)[-1][::-1].replace('-','/')
 
 def export(projectName):
-    project_issues = jira.search_issues(projectName)
+    project_issues = jira.search_issues("project="+projectName)
     for issue in project_issues:
         dumpIssue(issue)
         created_time = timeFormat(issue.fields.created)
@@ -205,7 +206,7 @@ def export(projectName):
 
         issue_type = issue.fields.issuetype.self
         issue_type = issue_type[issue_type.rfind('/')+1:]
-        # ¶ÔÓÚÄ³Ğ©EpicÖĞÃ»ÓĞ¹ØÁªµÄÎÊÌâÔÚÕâÀï´¦Àí
+        # å¯¹äºæŸäº›Epicä¸­æ²¡æœ‰å…³è”çš„é—®é¢˜åœ¨è¿™é‡Œå¤„ç†
         if '10000' == issue_type:   # Epic
             logging.info("  epic issue: %s" %(issue.fields.summary))
             epic = sprint.getEpic(issue.fields.summary)
@@ -276,13 +277,26 @@ def initLogger(projectName):
     logger.addHandler(fh)  
     logger.addHandler(ch)
 
-def main():
+def main(argv):
+    parser = OptionParser()
+    parser.add_option("--mpp_file",
+                     help="output director for jira export to mpp file.",
+                     default="D:\\june\\smee\\auto_tools.mpp")
+    parser.add_option("--project",
+                     help="the name of the project to be exported in jira.",
+                     default="auto_tools")
+
+    (options, _) = parser.parse_args(args=argv)
+    output  = options.mpp_file
+    project = options.project
+
     initLogger('jir2mpp')
 
-    logging.info("start export ... ")
-    export('project=echromium')
-    logging.info("start write ... ")
-    writeMpp('D:\\june\smee\jira.mpp')
+    logging.info("start export %s ... " %(project))
+    export(project)
+
+    logging.info("start write to %s ... " %(output))
+    writeMpp(output)
 
 if __name__ == '__main__':
-    main()
+    sys.exit(main(sys.argv[1:]))
