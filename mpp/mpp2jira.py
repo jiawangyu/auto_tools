@@ -30,12 +30,13 @@ issuetypes = {
     'Sub-Task':"10003",
 }
 
-resouceTable = {
-    '周俊':"zhoujun",
-    '俞晓慧':'yuxiaohui',
-    '张三':"zhangsan",
-    '李四':"lisi",
-}
+#gUsersInfo = {
+#    '周俊':"zhoujun",
+#    '俞晓慧':'yuxiaohui',
+#    '张三':"zhangsan",
+#    '李四':"lisi",
+#}
+gUsersInfo = {}
 
 def initLogger(projectName):
     logPath = os.path.join(os.getcwd()+'/out/')
@@ -107,15 +108,17 @@ def assigneeAndParticipant(resourceNames):
     resources = resourceNames.split(',')
     # chinese to english
     participant = ""
+    assignee    = ""
     for i in range(0, len(resources)):
-        for chinese, english in resouceTable.items():              
+        for chinese, english in gUsersInfo.items():
+            #logging.info("chinese:%s english:%s" %(chinese, english))
             if(chinese == resources[i]):
                 if(0 == i):
                     assignee = english
                 else:
                     participant += " "
                     participant += english
-
+    logging.info("assignee:%s participant:%s" %(assignee, participant))
     return assignee, participant
 
 class JiraTool:
@@ -150,9 +153,6 @@ class JiraTool:
         for sprint in sprints:
             logging.info('delete sprint %s' %(sprint.name))
             sprint.delete()
-        #    print '----------------'
-        #    print '    name:' + sprint.name
-        #    print '    id:' + str(sprint.id)
 
     def getProject(self, name):
         projects = self.jiraClinet.projects()
@@ -168,17 +168,10 @@ class JiraTool:
     def getBoard(self, project, name):
         boards = self.jiraClinet.boards()
         for board in boards:
-            #print '  name:' + board.name
-            #print '  id:' + str(board.id)
             if(name == board.name):
                 logging.info("board：%s id:%d" %(board.name, board.id))
                 return board
 
-            sprints = self.jiraClinet.sprints(board.id)
-            #for sprint in sprints:
-            #    print '----------------'
-            #    print '    name:' + sprint.name
-            #    print '    id:' + str(sprint.id)
         return self.jiraClinet.create_board(name, [project.id])
 
     def createSprint(self, board, name, startDate=None, endDate=None):
@@ -193,16 +186,16 @@ class JiraTool:
                 return sprint
         return None
 
-    def createEpicTask(self, sprint, project, summary, description, assignee, participant=''):
+    def createEpicTask(self, project, sprint, summary, description, assignee, participant=''):
         issue_dict = {
             'project': {'key': project.key},
             'issuetype': {'id': issuetypes['Epic']},
-            'customfield_10002': summary, #epic 名称
+            'customfield_10002': summary,      # epic 名称
             'summary': summary,
             'description': description,
-            "customfield_10004": sprint.id, #sprint
+            "customfield_10004": sprint.id,    # sprint
             'assignee': {'name': assignee},
-            'customfield_10301' : participant, #参与人
+            'customfield_10301' : participant, # 参与人
         }
 
         logging.info(issue_dict) #juse for debug
@@ -212,12 +205,11 @@ class JiraTool:
         #dumpIssue(issue) #juse for debug
         return issue
 
-    def createTask(self, project, epic, summary, description, assignee, participant=''):
+    def createTask(self, project, sprint, epic, summary, description, assignee, participant=''):
         issue_dict = {
             'project': {'key': project.key},
             'issuetype': {'id': issuetypes['Task']},
             'summary': summary,
-            #'customfield_10002': epic.raw['fields']['summary'], #epic
             'description': description,
             'assignee': {'name': assignee},
             'customfield_10301' : participant, #参与人
@@ -226,6 +218,7 @@ class JiraTool:
         issue = self.jiraClinet.create_issue(issue_dict)
         logging.info("==> add task[%s key:%s] link epic [%s key: %s]" %(issue.raw['fields']['summary'], issue.raw['key'], epic.raw['fields']['summary'], epic.raw['key']))
         self.jiraClinet.add_issues_to_epic(epic.id, [issue.raw['key']])
+        self.jiraClinet.add_issues_to_sprint(sprint.id, [issue.raw['key']])
         return issue
 
     def createSubTask(self, project, parent, summary, description, assignee, participant=''):
@@ -242,6 +235,13 @@ class JiraTool:
         logging.info("=> add sub task[%s key:%s] to task [%s key: %s]" %(issue.raw['fields']['summary'], issue.raw['key'], parent.raw['fields']['summary'], parent.raw['key']))
         return issue
 
+def initUsersInfo(jira_tool):
+    groups = jira_tool.jiraClinet.groups()
+    for group in groups:
+        members = jira_tool.jiraClinet.group_members(group)
+        for name,value in members.items():
+            gUsersInfo[value['fullname']] = name
+
 def sync(jira_tool, mpp_file, jira_prj, board):
     mpp         = win32com.client.Dispatch("MSProject.Application")
     mpp.Visible = False
@@ -250,7 +250,6 @@ def sync(jira_tool, mpp_file, jira_prj, board):
         mppPrj      = mpp.ActiveProject
     except pythoncom.com_error as error:
         print(error.strerror)
-    #dump(mppPrj)
 
     sprint    = None
     epic_task = None
@@ -262,10 +261,9 @@ def sync(jira_tool, mpp_file, jira_prj, board):
         description += '[risk]'+ mppTask.Text2
 
         assignee, participant = assigneeAndParticipant(mppTask.ResourceNames)
-        logging.info('assignee :%s' %(assignee))
-        #logging.info('participant :%s' %(" ".join(str(i) for i in participant)))
-        logging.info('participant :%s' %(participant))
-        continue
+        if(assignee == ""):
+            logging.error("unable to get the corresponding account of %s, the task %s will be ignored" %(mppTask.ResourceNames.split(',')[0]), summary)
+            continue
 
         if (1 == mppTask.OutlineLevel):
             sprint = jira_tool.getSprint(board.id, summary)
@@ -279,14 +277,14 @@ def sync(jira_tool, mpp_file, jira_prj, board):
             if sprint is None:
                 logging.error("task not in sprint, check pls you mpp format!!")
                 break
-            epic_task = jira_tool.createEpicTask(sprint, jira_prj, summary, description, assignee, participant)
+            epic_task = jira_tool.createEpicTask(jira_prj, sprint, summary, description, assignee, participant)
             # next epic task, need reset its subtasks 
             task = None
         elif (3 == mppTask.OutlineLevel):
             if epic_task is None:
                 logging.error("task not in sprint, check pls you mpp format!!")
                 break
-            task = jira_tool.createTask(jira_prj, epic_task, summary, description, assignee, participant)
+            task = jira_tool.createTask(jira_prj, sprint, epic_task, summary, description, assignee, participant)
         elif (4 == mppTask.OutlineLevel):
             if task is None:
                 logging.error("parent task is none, check pls you mpp format!!")
@@ -314,6 +312,9 @@ def main(argv):
     jira_tool = JiraTool()
     logging.info("jira login ... ")
     jira_tool.login()
+
+    logging.info("init users info ... ")
+    initUsersInfo(jira_tool)
 
     project = jira_tool.getProject(project)
     if (project is None):

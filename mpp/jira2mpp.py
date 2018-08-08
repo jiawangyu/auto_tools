@@ -96,7 +96,18 @@ def writeMpp(outFile):
     mpp.FileNew(None,None,None,False)
     mpp.WBSCodeMaskEdit('',1,0)                  #导入顺序不一致添加
     mpp.WBSCodeRenumber(All=True) 
-    mpp.AddNewColumn()
+    mpp.AddNewColumn(8)
+    
+    #try:
+    #    mpp.CustomFieldRename(188743740, "aaaabbbbbbbbcccccccc", "ddddddddd")
+    #except pythoncom.com_error as error:
+    #    print (error)
+    #    print (vars(error))
+    #    print (error.args)
+    #    hr, msg, exc, arg = error.args
+
+    return
+    
     proj = mpp.ActiveProject
 
     line = 1
@@ -293,7 +304,7 @@ def main(argv):
     initLogger('jir2mpp')
 
     logging.info("start export %s ... " %(project))
-    export(project)
+    #export(project)
 
     logging.info("start write to %s ... " %(output))
     writeMpp(output)
