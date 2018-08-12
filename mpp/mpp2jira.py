@@ -6,7 +6,7 @@
 # *  将mpp里的数据同步到jira
 # *  @date     2018/7/17  @Reviser  Initial Version
 # **************************************************************
-import os, sys, datetime
+import os, sys, time, datetime
 import win32com.client
 import traceback
 import pythoncom
@@ -30,12 +30,6 @@ issuetypes = {
     'Sub-Task':"10003",
 }
 
-#gUsersInfo = {
-#    '周俊':"zhoujun",
-#    '俞晓慧':'yuxiaohui',
-#    '张三':"zhangsan",
-#    '李四':"lisi",
-#}
 gUsersInfo = {}
 
 def initLogger(projectName):
@@ -107,7 +101,7 @@ def assigneeAndParticipant(resourceNames):
 
     resources = resourceNames.split(',')
     # chinese to english
-    participant = ""
+    participant = []
     assignee    = ""
     for i in range(0, len(resources)):
         for chinese, english in gUsersInfo.items():
@@ -116,8 +110,8 @@ def assigneeAndParticipant(resourceNames):
                 if(0 == i):
                     assignee = english
                 else:
-                    participant += " "
-                    participant += english
+                    participant.append({u"displayName":chinese, u'name':english})
+
     logging.info("assignee:%s participant:%s" %(assignee, participant))
     return assignee, participant
 
@@ -186,7 +180,7 @@ class JiraTool:
                 return sprint
         return None
 
-    def createEpicTask(self, project, sprint, summary, description, assignee, participant=''):
+    def createEpicTask(self, project, sprint, summary, description, assignee, participant, duedate):
         issue_dict = {
             'project': {'key': project.key},
             'issuetype': {'id': issuetypes['Epic']},
@@ -195,8 +189,11 @@ class JiraTool:
             'description': description,
             "customfield_10004": sprint.id,    # sprint
             'assignee': {'name': assignee},
-            'customfield_10301' : participant, # 参与人
+            'customfield_10303': participant,
+            'customfield_10302': '2018-08-24T05:41:00.000+0800'
         }
+        
+        logging.info(duedate)
 
         logging.info(issue_dict) #juse for debug
         issue = self.jiraClinet.create_issue(issue_dict)
@@ -205,14 +202,14 @@ class JiraTool:
         #dumpIssue(issue) #juse for debug
         return issue
 
-    def createTask(self, project, sprint, epic, summary, description, assignee, participant=''):
+    def createTask(self, project, sprint, epic, summary, description, assignee, participant):
         issue_dict = {
             'project': {'key': project.key},
             'issuetype': {'id': issuetypes['Task']},
             'summary': summary,
             'description': description,
             'assignee': {'name': assignee},
-            'customfield_10301' : participant, #参与人
+            'customfield_10303': participant
         }
 
         issue = self.jiraClinet.create_issue(issue_dict)
@@ -221,7 +218,7 @@ class JiraTool:
         self.jiraClinet.add_issues_to_sprint(sprint.id, [issue.raw['key']])
         return issue
 
-    def createSubTask(self, project, parent, summary, description, assignee, participant=''):
+    def createSubTask(self, project, parent, summary, description, assignee, participant):
         issue_dict = {
             'project': {'key': project.key},
             'parent': {'key': parent.raw['key']},
@@ -229,7 +226,7 @@ class JiraTool:
             'summary': summary,
             'description': description,
             'assignee': {'name': assignee},
-            'customfield_10301' : participant, #参与人
+            'customfield_10303': participant
         }
         issue = self.jiraClinet.create_issue(issue_dict)
         logging.info("=> add sub task[%s key:%s] to task [%s key: %s]" %(issue.raw['fields']['summary'], issue.raw['key'], parent.raw['fields']['summary'], parent.raw['key']))
@@ -245,11 +242,13 @@ def initUsersInfo(jira_tool):
 def sync(jira_tool, mpp_file, jira_prj, board):
     mpp         = win32com.client.Dispatch("MSProject.Application")
     mpp.Visible = False
+
     try:
         mpp.FileOpen(mpp_file)
         mppPrj      = mpp.ActiveProject
     except pythoncom.com_error as error:
-        print(error.strerror)
+        logging.info(error.strerror)
+        return
 
     sprint    = None
     epic_task = None
@@ -257,8 +256,10 @@ def sync(jira_tool, mpp_file, jira_prj, board):
     for i in range(1, mppPrj.Tasks.Count+1):
         mppTask     = mppPrj.Tasks.Item(i)
         summary     = mppTask.Name
-        description = '[deliverables]'+ mppTask.Text1
-        description += '[risk]'+ mppTask.Text2
+        finish      = str(mppTask.ActualFinish).replace('/', '-').split(' ')[0]
+        #description = '[deliverables]'+ mppTask.Text1 + '\n'
+        description = '[交付件] {0}\n'.format(mppTask.Text1)
+        description += '[风险] {0}\n'.format(mppTask.Text2)
 
         assignee, participant = assigneeAndParticipant(mppTask.ResourceNames)
         if(assignee == ""):
@@ -277,7 +278,7 @@ def sync(jira_tool, mpp_file, jira_prj, board):
             if sprint is None:
                 logging.error("task not in sprint, check pls you mpp format!!")
                 break
-            epic_task = jira_tool.createEpicTask(jira_prj, sprint, summary, description, assignee, participant)
+            epic_task = jira_tool.createEpicTask(jira_prj, sprint, summary, description, assignee, participant, finish)
             # next epic task, need reset its subtasks 
             task = None
         elif (3 == mppTask.OutlineLevel):

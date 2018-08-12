@@ -10,6 +10,7 @@ import os, sys, datetime
 import win32com.client
 import traceback
 import pythoncom
+import pywintypes
 
 import logging
 import argparse
@@ -21,9 +22,13 @@ from jira.client import GreenHopper
 reload(sys)
 sys.setdefaultencoding('utf-8')
 
-jira = JIRA('http://127.0.0.1:8080/',basic_auth=('yujiawang','198317'))
+jira_url = "http://127.0.0.1:8080/"
+usrer    = "yujiawang"
+password = "198317"
 
-pythoncom.CoInitialize() #防止出现重复打开异常
+ISSUE_EPIC_TYPE  = '10000'
+ISSUE_STORY_TYPE = '10001'
+ISSUE_TASK_TYPE  = '10002'
 
 gSprints = {}
 
@@ -80,90 +85,96 @@ def get_sprint_name(sprint_field):
         if('name' == fields[0]):
             return fields[1]
 
-def getSprint(name):
+def exportSprint(name):
+    sprint = None
     for sprint_name, sprint in gSprints.items():
         if(name == sprint_name):
             return sprint
 
-    return None
+    sprint = Sprint(name)
+    gSprints[name] = sprint
+    return sprint
+
+def writeSprintTask(mppPrj, sprint, line):
+    mppTask = mppPrj.Tasks.Add(sprint.name,line)       # 参数:任务名称、任务在第几行
+    line += 1
+    mppTask.OutlineLevel  = 1;
+    mppTask.ResourceNames = '' # owner
+    mppTask.ActualStart   = sprint.startDate      # 开始时间
+    mppTask.ActualFinish  = sprint.endDate        # 结束时间
+    mppTask.Predecessors  = ''                    # 前置任务id  注:前置任务id应该在导出完成后保存Task对象，重新循环添加前置任务。不然会出现任务3在第三行，而他的前置任务在第4行，那么会出现导出空的行
+    mppTask.Milestone=False                       # 是否是milestone
+    mppTask.ConstraintType = 5                    # 任务限制类型:越早越好、不得早于等等.  5:设置为不得晚于...开始，不会出现ms-project自动修改时间
+    mppTask.ConstraintDate = ''                   # 任务限制日期
+    mppTask.PercentComplete = '0'                 # 完成百分比
+
+    logging.info("sprint %s "%(sprint.name))
+    for epic in sprint.epics:
+        line = writeEpciTask(mppPrj, epic, line)
+    for task in sprint.tasks:
+        line = writeTask(mppPrj, task, line)
+    
+    return line
+
+def writeEpciTask(mppPrj, epic, line):
+    epicTask = mppPrj.Tasks.Add(epic.summary, line)
+    line += 1
+    epicTask.OutlineLevel = 2;
+    #epicTask.ResourceNames= epic.assignee
+    epicTask.ActualStart= epic.created
+    logging.info("|--epic %s "%(epic.summary))
+    for task in epic.tasks:
+        line = writeTask(mppPrj, task, line)
+    
+    return line
+
+def writeTask(mppPrj, task, line):
+    logging.info("|--task %s "%(task.summary))
+    mTask = mppPrj.Tasks.Add(task.summary, line)
+    line += 1
+    mTask.OutlineLevel = 2;
+    #mTask.ResourceNames= task.assignee
+    mTask.ActualStart= task.created
+    for sub_task in task.subtasks:
+        logging.info("    |--subtask %s "%(sub_task.summary))
+        subTask = mppPrj.Tasks.Add(sub_task.summary, line)
+        line += 1
+        subTask.OutlineLevel = 3;
+        subTask.ResourceNames= sub_task.assignee
+        subTask.ActualStart= sub_task.created
+    
+    return line
 
 def writeMpp(outFile):
-    proj    = ''
-    mpp     = None
+    proj        = ''
+    mpp         = None
 
     mpp         = win32com.client.Dispatch("MSProject.Application")
-    mpp.Visible = True
+    mpp.Visible = False
     mpp.FileNew(None,None,None,False)
-    mpp.WBSCodeMaskEdit('',1,0)                  #导入顺序不一致添加
-    mpp.WBSCodeRenumber(All=True) 
-    mpp.AddNewColumn(8)
-    
-    #try:
-    #    mpp.CustomFieldRename(188743740, "aaaabbbbbbbbcccccccc", "ddddddddd")
-    #except pythoncom.com_error as error:
-    #    print (error)
-    #    print (vars(error))
-    #    print (error.args)
-    #    hr, msg, exc, arg = error.args
+    #mpp.FileOpen("D:\\june\\smee\\123.mpp")
 
-    return
-    
-    proj = mpp.ActiveProject
+    mpp.WBSCodeMaskEdit('',1,0)                  #导入顺序不一致添加
+    mpp.WBSCodeRenumber(All=True)
+
+    # import vba macro
+    with open('init.bas') as f:
+        macro = f.read()
+
+    project = mpp.ActiveProject
+    vbCode = project.VBProject.VBComponents("ThisProject").CodeModule
+    vbCode.AddFromString(macro)
+
+    # run vba macro
+    mpp.Run("AddNewColum")
 
     line = 1
     for sprint in gSprints.values():
-        sprintTask = proj.Tasks.Add(sprint.name,line)       # 参数:任务名称、任务在第几行
-        line += 1
-        sprintTask.OutlineLevel  = 1;
-        sprintTask.ResourceNames = '' # owner
-        sprintTask.ActualStart   = sprint.startDate      # 开始时间
-        sprintTask.ActualFinish  = sprint.endDate        # 结束时间
-        sprintTask.Predecessors  = ''                    # 前置任务id  注:前置任务id应该在导出完成后保存Task对象，重新循环添加前置任务。不然会出现任务3在第三行，而他的前置任务在第4行，那么会出现导出空的行
-        sprintTask.Milestone=False                       # 是否是milestone
-        sprintTask.ConstraintType = 5                    # 任务限制类型:越早越好、不得早于等等.  5:设置为不得晚于...开始，不会出现ms-project自动修改时间
-        sprintTask.ConstraintDate = ''                   # 任务限制日期
-        sprintTask.PercentComplete = '0'                 # 完成百分比
-
-        logging.info("sprint %s "%(sprint.name))
-        for epic in sprint.epics:
-            epicTask = proj.Tasks.Add(epic.summary, line)
-            line += 1
-            epicTask.OutlineLevel = 2;
-#            epicTask.ResourceNames= epic.assignee
-            epicTask.ActualStart= epic.created
-            logging.info("|--epic %s "%(epic.summary))
-            for task in epic.tasks:
-                logging.info("   |--task %s "%(task.summary))
-                mTask = proj.Tasks.Add(task.summary, line)
-                line += 1
-                mTask.OutlineLevel  = 3;
-                mTask.ResourceNames = task.assignee
-                mTask.ActualStart   = task.created
-                for sub_task in task.subtasks:
-                    logging.info("      |--subtask %s "%(sub_task.summary))
-                    subTask = proj.Tasks.Add(sub_task.summary, line)
-                    line += 1
-                    subTask.OutlineLevel  = 4;
-                    subTask.ResourceNames = sub_task.assignee
-                    subTask.ActualStart   = sub_task.created
-        for task in sprint.tasks:
-            logging.info("|--task %s "%(task.summary))
-            mTask = proj.Tasks.Add(task.summary, line)
-            line += 1
-            mTask.OutlineLevel = 2;
-#            mTask.ResourceNames= task.assignee
-            mTask.ActualStart= task.created
-            for sub_task in task.subtasks:
-                logging.info("    |--subtask %s "%(sub_task.summary))
-                subTask = proj.Tasks.Add(sub_task.summary, line)
-                line += 1
-                subTask.OutlineLevel = 3;
-                subTask.ResourceNames= sub_task.assignee
-                subTask.ActualStart= sub_task.created
+        line = writeSprintTask(project, sprint, line)
 
     mpp.FileSaveAs(outFile);
-    mpp.Quit(); 
-            
+    mpp.Quit();
+
     mpp = None
 
 def dumpIssue(issue):
@@ -175,94 +186,81 @@ def dumpIssue(issue):
 def timeFormat(time):
     return time[::-1].split('T', 1)[-1][::-1].replace('-','/')
 
-def export(projectName):
+def exportSubTaskIssue(jira, task, issue):
+    for sub in issue.raw['fields']['subtasks']:
+        sub_issue = jira.issue(sub['key'])
+        created_time = timeFormat(sub_issue.fields.created)
+        sub_task = Task(sub_issue.fields.summary, created_time)
+        task.subtasks.append(sub_task)
+        logging.info("    issue[%s] add sub_task: %s" %(task.summary, sub_task.summary))
+
+def exportEpicIssue(jira, sprint, issue):
+    epic_issue = issue
+    if issue.fields.customfield_10000: # issue 的epic字段
+        epic_issue = jira.issue(issue.fields.customfield_10000)
+
+    logging.info("  epic issue: %s" %(epic_issue.fields.summary))
+    epic = sprint.getEpic(epic_issue.fields.summary)
+    if epic is None:
+        epic = Epic(epic_issue.fields.summary, timeFormat(epic_issue.fields.created))
+        sprint.epics.append(epic)
+    
+    exportSubTaskIssue(jira, epic, epic_issue)
+
+    return epic
+
+def exportStoryIssue(jira, sprint, epic, issue):
+    task = Task(issue.fields.summary, timeFormat(issue.fields.created))
+    if epic is None:
+        sprint.tasks.append(task)
+        logging.info("sprint[%s] add story_issue: %s" %(sprint.name, task.summary))
+    else:
+        epic.tasks.append(task)
+        logging.info("  epic[%s] add story_issue: %s" %(epic.summary, task.summary))
+
+    exportSubTaskIssue(jira, epic, epic_issue)
+
+    return task
+
+def exportTaskIssue(jira, sprint, epic, issue):
+    task = Task(issue.fields.summary, timeFormat(issue.fields.created))
+    if epic is None:
+        logging.info("sprint[%s] add task_issue: %s" %(sprint.name, task.summary))
+        sprint.tasks.append(task)
+    else:
+        epic.tasks.append(task)
+        logging.info("  epic[%s] add task_issue: %s" %(epic.summary, task.summary))
+
+    exportSubTaskIssue(jira, task, issue)
+    return task
+
+def export(jira, projectName):
     project_issues = jira.search_issues("project="+projectName)
     for issue in project_issues:
         dumpIssue(issue)
-        created_time = timeFormat(issue.fields.created)
+
         logging.info('<--------------------------')
-        sprint_name = ''
-        sprint = None
-        if issue.fields.customfield_10004:
+        if issue.fields.customfield_10004:     # issue的sprint字段
             issue_sprint = issue.fields.customfield_10004
             sprint_name = get_sprint_name(issue_sprint[0])
-        if '' == sprint_name:
+
+        if sprint_name is None or '' == sprint_name:
             logging.error("issue[%s] not in any sprint." %(epic_issue.fields.summary))
             continue
-            logging.info('-------------------------->')
 
-        sprint = getSprint(sprint_name)
-        if sprint is None:
-            sprint = Sprint(name=sprint_name)
-            gSprints[sprint_name] = sprint
-        else:
-            sprint = gSprints[sprint_name]
-
-        epic = None
-        if issue.fields.customfield_10000:
-            epic_issue = jira.issue(issue.fields.customfield_10000)
-            epic = sprint.getEpic(epic_issue.fields.summary)
-            if epic is None:
-                epic = Epic(epic_issue.fields.summary, created_time)
-                sprint.epics.append(epic)
-                logging.info("sprint[%s] add epic_issue: %s" %(sprint.name, epic.summary))
-
-            # epic sub tasks
-            for sub in issue.raw['fields']['subtasks']:
-                sub_issue = jira.issue(sub['key'])
-                logging.info("      sub issue: %s" %(sub_issue.fields.summary))
-                created_time = timeFormat(sub_issue.fields.created)
-                sub_task = Task(sub_issue.fields.summary, created_time)
-                epic.tasks.append(sub_task)
+        sprint = exportSprint(sprint_name)      # 对应sprint不存在则创建一个sprint对象 
+        epic   = exportEpicIssue(jira, sprint, issue) # 如果某个issue关联了Epic，但对应的Epic issue还未导出，则先导出关联的Epic issue
 
         issue_type = issue.fields.issuetype.self
         issue_type = issue_type[issue_type.rfind('/')+1:]
-        # 对于某些Epic中没有关联的问题在这里处理
-        if '10000' == issue_type:   # Epic
-            logging.info("  epic issue: %s" %(issue.fields.summary))
-            epic = sprint.getEpic(issue.fields.summary)
-            if epic is None:
-                epic = Epic(issue.fields.summary, created_time)
-                sprint.epics.append(epic)
-                # sub tasks
-                for sub in issue.raw['fields']['subtasks']:
-                    sub_issue = jira.issue(sub['key'])
-                    logging.info("      sub issue: %s" %(sub_issue.fields.summary))
-                    created_time = timeFormat(sub_issue.fields.created)
-                    sub_task = Task(sub_issue.fields.summary, created_time)
-                    epic.tasks.append(sub_task)
-        elif '10001' == issue_type: # Story
-            task = Task(issue.fields.summary, created_time)
-            if epic is None:
-                sprint.tasks.append(task)
-                logging.info("sprint[%s] add story_issue: %s" %(sprint.name, task.summary))
-            else:
-                epic.tasks.append(task)
-                logging.info("  epic[%s] add story_issue: %s" %(epic.summary, task.summary))
-            # sub tasks
-            for sub in issue.raw['fields']['subtasks']:
-                sub_issue = jira.issue(sub['key'])
-                created_time = timeFormat(sub_issue.fields.created)
-                sub_task = Task(sub_issue.fields.summary, created_time)
-                task.subtasks.append(sub_task)
-                logging.info("    story_issue[%s] add sub_task: %s" %(task.summary, sub_task.summary))
-        elif '10002' == issue_type: # Task
-            logging.info("  task issue: %s" %(issue.fields.summary))
-            task = Task(issue.fields.summary, created_time)
-            if epic is None:
-                logging.info("sprint[%s] add task_issue: %s" %(sprint.name, task.summary))
-                sprint.tasks.append(task)
-            else:
-                epic.tasks.append(task)
-                logging.info("  epic[%s] add task_issue: %s" %(epic.summary, task.summary))
-            # sub tasks
-            for sub in issue.raw['fields']['subtasks']:
-                sub_issue = jira.issue(sub['key'])
-                created_time = timeFormat(sub_issue.fields.created)
-                sub_task = Task(sub_issue.fields.summary, created_time)
-                task.subtasks.append(sub_task)
-                logging.info("    task_issue[%s] add sub_task: %s" %(task.summary, sub_task.summary))
-#        elif '10003' == issue_type: # SubTask
+        # 对于某些issue本身是Epic issue在这里导出，如果已经导出过的在exportEpicIssue会忽略掉
+        if ISSUE_EPIC_TYPE == issue_type:    # Epic
+            epic = exportEpicIssue(jira, sprint, issue)
+        elif ISSUE_STORY_TYPE == issue_type: # Story
+            task = exportStoryIssue(jira, sprint, epic, issue)
+        elif ISSUE_TASK_TYPE == issue_type: # Task
+            task = exportTaskIssue(jira, sprint, epic, issue)
+
         logging.info('-------------------------->')
 
 def initLogger(projectName):
@@ -292,7 +290,7 @@ def main(argv):
     parser = OptionParser()
     parser.add_option("--mpp_file",
                      help="output director for jira export to mpp file.",
-                     default="D:\\june\\smee\\auto_tools.mpp")
+                     default="D:\\june\\smee\\auto_tools_1.mpp")
     parser.add_option("--project",
                      help="the name of the project to be exported in jira.",
                      default="auto_tools")
@@ -303,8 +301,11 @@ def main(argv):
 
     initLogger('jir2mpp')
 
+    jira = JIRA(jira_url,basic_auth=(usrer, password))
+    pythoncom.CoInitialize()
+
     logging.info("start export %s ... " %(project))
-    #export(project)
+    export(jira, project)
 
     logging.info("start write to %s ... " %(output))
     writeMpp(output)
