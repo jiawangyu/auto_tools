@@ -26,7 +26,6 @@ sys.setdefaultencoding('utf-8')
 jira_url = "http://127.0.0.1:8080/"
 usrer    = "yujiawang"
 password = "198317"
-gSprints = {}
 
 ISSUE_EPIC_TYPE  = '10000'
 ISSUE_STORY_TYPE = '10001'
@@ -38,6 +37,8 @@ def issueSprintField(issue):
 def issueEpicField(issue):
     return issue.fields.customfield_10000
 #--------------------- custom area end -----------------------
+
+gSprints = {}
 
 class Sprint:
     def __init__(self, id='', state='', name='', startDate='', endDate='', completeDate='', sequence=''):
