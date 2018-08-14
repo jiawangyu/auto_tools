@@ -107,7 +107,7 @@ def writeSprintTask(mppPrj, sprint):
 def writeEpciTask(mppPrj, epic):
     epicTask = mppPrj.Tasks.Add(epic.name, mppPrj.Tasks.Count+1)
     epicTask.OutlineLevel   = 2;
-    epicTask.ResourceNames  = epic.assignee
+    #epicTask.ResourceNames  = epic.assignee
 
     writeLog(epic, 2)
     for task in epic.tasks:
@@ -213,12 +213,15 @@ def timeFormat(time):
 
 def exportSubTaskIssue(jira, task, parent):
     for issue in parent.raw['fields']['subtasks']:
-        issue        = jira.issue(sub['key'])
+        issue        = jira.issue(issue['key'])
 
         created_time = timeFormat(issue.fields.created)
         duedate      = timeFormat(issue.fields.updated)
         assignee     = getAssigneeName(issueAssigneeField(issue))
+        if(issue.fields.description):
         description  = issue.fields.description.split('\n')[0].split('】')[1]
+        else:
+            description = ''
 
         sub_task = Task(issue.fields.summary, created_time, duedate, assignee, description)
         task.subtasks.append(sub_task)
@@ -234,7 +237,13 @@ def exportStoryIssue(jira, sprint, epic, issue):
     return task
 
 def exportTaskIssue(jira, sprint, epic, issue):
-    task = Task(issue.fields.summary, timeFormat(issue.fields.created))
+    assignee     = getAssigneeName(issueAssigneeField(issue))
+    if(issue.fields.description):
+        description  = issue.fields.description.split('\n')[0].split('】')[1]
+    else:
+        description = ''
+    task = Task(issue.fields.summary, timeFormat(issue.fields.created), assignee, description)
+
     if epic is None:
         sprint.tasks.append(task)
     else:
@@ -252,7 +261,7 @@ def exportEpicIssue(jira, sprint, issue, isEpicIssue):
 
     epic = sprint.getEpic(issue.fields.summary)
     if epic is None:
-        epic = Epic(issue.fields.summary, timeFormat(issue.fields.created))
+        epic = Epic(issue.fields.summary)
         sprint.epics.append(epic)
     
     exportSubTaskIssue(jira, epic, issue)

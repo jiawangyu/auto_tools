@@ -36,6 +36,8 @@ def issueSprintField(issue):
 
 def issueEpicField(issue):
     return issue.fields.customfield_10000
+def issueAssigneeField(issue):
+    return issue.fields.assignee
 #--------------------- custom area end -----------------------
 
 gSprints = {}
@@ -65,29 +67,28 @@ class Sprint:
         return None
 
 class Epic:
-   def __init__(self, name, created):
+   def __init__(self, name):
        self.name    = name
-       self.created = created
        self.tasks = []
 
 class Task:
-    def __init__(self, name, created, assignee=''):
+    def __init__(self, name, created, duedate, assignee='', description=''):
         self.name    = name
         self.created = created
-        self.subtasks = []
+        self.duedate     = duedate
         self.assignee = assignee
+        self.description = description
+        self.subtasks    = []
 
 def writeSprintTask(mppPrj, sprint):
-    mppTask = mppPrj.Tasks.Add(sprint.name, mppPrj.Tasks.Count+1)       # 参数:任务名称、任务在第几行
+    mppTask = mppPrj.Tasks.Add(sprint.name, mppPrj.Tasks.Count+1)
     mppTask.OutlineLevel    = 1;
     mppTask.ResourceNames   = ''                  # owner
-    mppTask.ActualStart     = sprint.startDate    # 开始时间
-    mppTask.ActualFinish    = sprint.endDate      # 结束时间
     mppTask.Predecessors    = ''                  # 前置任务id  注:前置任务id应该在导出完成后保存Task对象，重新循环添加前置任务。不然会出现任务3在第三行，而他的前置任务在第4行，那么会出现导出空的行
     mppTask.Milestone       = False               # 是否是milestone
     mppTask.ConstraintType  = 5                   # 任务限制类型:越早越好、不得早于等等.  5:设置为不得晚于...开始，不会出现ms-project自动修改时间
     mppTask.ConstraintDate  = ''                  # 任务限制日期
-    mppTask.PercentComplete = '0'                 # 完成百分比
+    mppTask.PercentComplete = '10%'               # 完成百分比
 
     writeLog(sprint, 1)
     for epic in sprint.epics:
@@ -95,11 +96,17 @@ def writeSprintTask(mppPrj, sprint):
     for task in sprint.tasks:
         writeTask(mppPrj, task, 2)
 
+    # add milestone
+    milestoneTask = mppPrj.Tasks.Add(sprint.name + u'里程碑', mppPrj.Tasks.Count+1)
+    mppTask.OutlineLevel        = 1;
+    milestoneTask.ActualStart   = sprint.startDate
+    milestoneTask.ActualFinish  = sprint.endDate
+    milestoneTask.Milestone     = True
+
 def writeEpciTask(mppPrj, epic):
     epicTask = mppPrj.Tasks.Add(epic.name, mppPrj.Tasks.Count+1)
     epicTask.OutlineLevel = 2;
-    #epicTask.ResourceNames= epic.assignee
-    epicTask.ActualStart= epic.created
+    #epicTask.ResourceNames  = epic.assignee
 
     writeLog(epic, 2)
     for task in epic.tasks:
@@ -112,15 +119,18 @@ def writeTask(mppPrj, task, level):
     mTask = mppPrj.Tasks.Add(task.name, mppPrj.Tasks.Count+1)
 
     mTask.OutlineLevel = level;
-    #mTask.ResourceNames= task.assignee
-    mTask.ActualStart= task.created
+    mTask.ResourceNames = u''+task.assignee
+    mTask.ActualStart   = task.created
+    mTask.ActualFinish  = task.duedate
     for sub_task in task.subtasks:
         writeLog(sub_task, level + 1)
         subTask = mppPrj.Tasks.Add(sub_task.name, mppPrj.Tasks.Count+1)
 
         subTask.OutlineLevel  = level + 1;
-        subTask.ResourceNames = sub_task.assignee
+        subTask.ResourceNames = u''+sub_task.assignee
         subTask.ActualStart   = sub_task.created
+        subTask.ActualFinish  = sub_task.duedate
+        subTask.Text1         = sub_task.description
 
 def dumpExport():
     logging.info("start dump export data ...")
@@ -184,14 +194,34 @@ def dumpIssue(issue):
         logging.info("  %s:%s" %(field_name, issue.raw['fields'][field_name]))
     logging.info('--------------- dump issue end --------------- ')
 
+def getAssigneeName(assignee_field):
+    value = str(assignee_field)
+    num = len(value.split('key')) - 1
+    assignee_list=''
+    while num > 0:
+        if '' == assignee_list:
+            assignee_list = str(assignee_field[num - 1])
+        else:
+            assignee_list = assignee_list + ',' + str(assignee_field[num - 1])
+    num = num -1
+    return u''+ assignee_list
+
 def timeFormat(time):
     return time[::-1].split('T', 1)[-1][::-1].replace('-','/')
 
-def exportSubTaskIssue(jira, task, issue):
-    for sub in issue.raw['fields']['subtasks']:
-        sub_issue = jira.issue(sub['key'])
-        created_time = timeFormat(sub_issue.fields.created)
-        sub_task = Task(sub_issue.fields.summary, created_time)
+def exportSubTaskIssue(jira, task, parent):
+    for issue in parent.raw['fields']['subtasks']:
+        issue        = jira.issue(issue['key'])
+
+        created_time = timeFormat(issue.fields.created)
+        duedate      = timeFormat(issue.fields.updated)
+        assignee     = getAssigneeName(issueAssigneeField(issue))
+        if(issue.fields.description):
+            description  = issue.fields.description.split('\n')[0].split('】')[1]
+        else:
+            description = ''
+
+        sub_task = Task(issue.fields.summary, created_time, duedate, assignee, description)
         task.subtasks.append(sub_task)
 
 def exportStoryIssue(jira, sprint, epic, issue):
@@ -205,7 +235,13 @@ def exportStoryIssue(jira, sprint, epic, issue):
     return task
 
 def exportTaskIssue(jira, sprint, epic, issue):
-    task = Task(issue.fields.summary, timeFormat(issue.fields.created))
+    assignee     = getAssigneeName(issueAssigneeField(issue))
+    if(issue.fields.description):
+        description  = issue.fields.description.split('\n')[0].split('】')[1]
+    else:
+        description = ''
+    task = Task(issue.fields.summary, timeFormat(issue.fields.created), assignee, description)
+
     if epic is None:
         sprint.tasks.append(task)
     else:
@@ -223,7 +259,7 @@ def exportEpicIssue(jira, sprint, issue, isEpicIssue):
 
     epic = sprint.getEpic(issue.fields.summary)
     if epic is None:
-        epic = Epic(issue.fields.summary, timeFormat(issue.fields.created))
+        epic = Epic(issue.fields.summary)
         sprint.epics.append(epic)
     
     exportSubTaskIssue(jira, epic, issue)
@@ -266,7 +302,7 @@ def exportSprint(issue):
     return sprint
 
 def export(jira, projectName):
-    issues = jira.search_issues("project="+projectName)
+    issues = jira.search_issues("project="+projectName, 0, 500)
     for issue in issues:
         #dumpIssue(issue)
         sprint = exportSprint(issue)      # 对应sprint不存在则创建一个sprint对象 
