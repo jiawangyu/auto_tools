@@ -123,7 +123,6 @@ def writeTask(mppPrj, task, level):
     mTask.ResourceNames = u''+task.assignee
     mTask.ActualStart   = task.created
     mTask.ActualFinish  = task.duedate
-
     for sub_task in task.subtasks:
         writeLog(sub_task, level + 1)
         subTask = mppPrj.Tasks.Add(sub_task.name, mppPrj.Tasks.Count+1)
@@ -198,14 +197,14 @@ def dumpIssue(issue):
 
 def getAssigneeName(assignee_field):
     value = str(assignee_field)
-    num = len(value.split('key')) - 1
+    num   = len(value.split('key')) - 1
     assignee_list=''
     while num > 0:
         if '' == assignee_list:
             assignee_list = str(assignee_field[num - 1])
         else:
             assignee_list = assignee_list + ',' + str(assignee_field[num - 1])
-    num = num -1
+        num = num -1
     return u''+ assignee_list
 
 def timeFormat(time):
@@ -219,7 +218,7 @@ def exportSubTaskIssue(jira, task, parent):
         duedate      = timeFormat(issue.fields.updated)
         assignee     = getAssigneeName(issueAssigneeField(issue))
         if(issue.fields.description):
-        description  = issue.fields.description.split('\n')[0].split('】')[1]
+            description  = issue.fields.description.split('\n')[0].split('】')[1]
         else:
             description = ''
 
@@ -311,7 +310,8 @@ def export(jira, projectName):
         if(sprint is None):
             continue
 
-        epic   = exportEpicIssue(jira, sprint, issue, False) # 如果某个issue关联了Epic，但对应的Epic issue还未导出，则先导出关联的Epic issue
+        if(issueEpicField(issue)):
+            epic   = exportEpicIssue(jira, sprint, issue, False) # 如果某个issue关联了Epic，但对应的Epic issue还未导出，则先导出关联的Epic issue
 
         issue_type = issue.fields.issuetype.self
         issue_type = issue_type[issue_type.rfind('/')+1:]

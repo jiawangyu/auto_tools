@@ -203,7 +203,7 @@ def getAssigneeName(assignee_field):
             assignee_list = str(assignee_field[num - 1])
         else:
             assignee_list = assignee_list + ',' + str(assignee_field[num - 1])
-    num = num -1
+        num = num -1
     return u''+ assignee_list
 
 def timeFormat(time):
